@@ -198,6 +198,7 @@ app.get("/tweets/:tweetId/replies/", authenticateToken, async (request, response
 // API 9
 
 app.get("/user/tweets/", authenticateToken, async (request, response) =>{
+    const userId = 2;
 
 }
 
