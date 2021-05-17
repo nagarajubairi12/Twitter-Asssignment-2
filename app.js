@@ -150,12 +150,14 @@ app.get("/following/", async (request, response) => {
 // API 4
 
 app.get("/user/following/", authenticateToken, async (request, response) => {
-  const userId = 3;
+  const userId = 1;
   const getUserQuery = `
   SELECT name
-  FROM 
-  user INNER JOIN follower ON user.user_id = follower.following_user_id
-  WHERE user_id = ${userId}
+  FROM
+   user INNER JOIN follower ON user.user_id = follower.follower_user_id
+  WHERE follower.following_user_id = 
+  (SELECT following_user_id FROM follower WHERE follower_user_id = ${userId})
+  
   
   ;`;
   const userArray = await db.all(getUserQuery);
@@ -165,13 +167,14 @@ app.get("/user/following/", authenticateToken, async (request, response) => {
 // API 5
 
 app.get("/user/followers/", authenticateToken, async (request, response) => {
-  const userId = 2;
+  const userId = 1;
 
   const getUserQuery = `
   SELECT name
   FROM 
-  user LEFT JOIN follower ON user.user_id = follower.follower_user_id
-  WHERE user_id =${userId}
+  user INNER JOIN follower ON user.user_id = follower.following_user_id
+  WHERE follower.follower_user_id = 
+  (SELECT follower_user_id FROM follower WHERE following_user_id = ${userId})
   ;`;
   const userArray = await db.all(getUserQuery);
   response.send(userArray);
@@ -179,29 +182,56 @@ app.get("/user/followers/", authenticateToken, async (request, response) => {
 
 // API 6
 
-app.get("/tweets/:tweetId/", authenticateToken, async (request, response) =>{
+app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
+  const { tweetId } = request.params;
+  const userId = 1;
+  const deleteId = `
+    SELECT tweet_id from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
+  const dbResponse = await db.get(deleteId);
 
-}
+  if (dbResponse === undefined) {
+    response.status(401);
+    response.send("Invalid Request");
+  } else {
+    const tweetQuery = `
+    SELECT tweet.tweet AS tweet,
+    COUNT(like.like_id) AS likes,
+    COUNT(Q.reply_id) AS replays,
+    Q.date_time AS dateTime
+    FROM ((( user INNER JOIN follower ON user.user_id = follower.following_user_id ) AS T
+    INNER JOIN tweet ON tweet.user_id = user.user_id ) AS F
+    INNER JOIN reply ON reply.tweet_id = F.tweet_id ) AS Q
+    INNER JOIN like ON like.tweet_id = Q.tweet_id
+    WHERE user.user_id = ${userId} AND tweet.tweet_id = ${tweetId}
+
+    `;
+
+    const responseArray = await db.get(tweetQuery);
+    response.send(responseArray);
+  }
+});
 
 // API 7
 
-app.get("/tweets/:tweetId/likes/", authenticateToken, async (request, response) =>{
-
-}
+app.get(
+  "/tweets/:tweetId/likes/",
+  authenticateToken,
+  async (request, response) => {}
+);
 
 // API 8
 
-app.get("/tweets/:tweetId/replies/", authenticateToken, async (request, response) =>{
-
-}
+app.get(
+  "/tweets/:tweetId/replies/",
+  authenticateToken,
+  async (request, response) => {}
+);
 
 // API 9
 
-app.get("/user/tweets/", authenticateToken, async (request, response) =>{
-    const userId = 2;
-
-}
-
+app.get("/user/tweets/", authenticateToken, async (request, response) => {
+  const userId = 2;
+});
 
 // API 10
 
@@ -245,7 +275,7 @@ app.delete(
     user_id = ${userId} and 
     tweet_id = '${tweetId}';`;
 
-      const dbResponse = await db.run(deleteQuery);
+      await db.run(deleteQuery);
       response.send("Tweet Removed");
     }
   }
