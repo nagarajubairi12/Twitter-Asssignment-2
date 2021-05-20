@@ -213,9 +213,9 @@ app.get("/user/followers/", authenticateToken, async (request, response) => {
 app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
   const { tweetId } = request.params;
   const userId = 2;
-  const deleteId = `
+  const validate = `
     SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
-  const dbResponse = await db.get(deleteId);
+  const dbResponse = await db.get(validate);
 
   if (dbResponse === undefined) {
     response.status(401);
@@ -250,7 +250,17 @@ app.get(
   authenticateToken,
   async (request, response) => {
     const { tweetId } = request.params;
-    const likesQuery = `
+    const userId = 2;
+
+    const validate = `
+    SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
+    const dbResponse = await db.get(validate);
+
+    if (dbResponse === undefined) {
+      response.status(401);
+      response.send("Invalid Request");
+    } else {
+      const likesQuery = `
         SELECT
             name
         FROM
@@ -259,8 +269,9 @@ app.get(
         WHERE
             tweet_id = ${tweetId}
       ;`;
-    const likeResponse = await db.all(likesQuery);
-    response.send({ likes: likeResponse.map((each) => each.name) });
+      const likeResponse = await db.all(likesQuery);
+      response.send({ likes: likeResponse.map((each) => each.name) });
+    }
   }
 );
 
@@ -271,7 +282,17 @@ app.get(
   authenticateToken,
   async (request, response) => {
     const { tweetId } = request.params;
-    const replyQuery = `
+    const userId = 2;
+
+    const validate = `
+    SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
+    const dbResponse = await db.get(validate);
+
+    if (dbResponse === undefined) {
+      response.status(401);
+      response.send("Invalid Request");
+    } else {
+      const replyQuery = `
         SELECT
             name,
             reply
@@ -281,13 +302,14 @@ app.get(
         WHERE
             tweet_id =${tweetId}
       ;`;
-    const replyResponse = await db.all(replyQuery);
-    response.send({
-      replies: replyResponse.map((each) => ({
-        name: each.name,
-        reply: each.reply,
-      })),
-    });
+      const replyResponse = await db.all(replyQuery);
+      response.send({
+        replies: replyResponse.map((each) => ({
+          name: each.name,
+          reply: each.reply,
+        })),
+      });
+    }
   }
 );
 
@@ -348,15 +370,16 @@ app.delete(
     const deleteId = `
     SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
     const deleteResponse = await db.get(deleteId);
+
     if (deleteResponse === undefined) {
       response.status(401);
       response.send("Invalid Request");
     } else {
       const deleteQuery = `
     DELETE FROM 
-    tweet
+        tweet
     WHERE 
-    tweet_id = ${tweetId};`;
+        tweet_id = ${tweetId};`;
       await db.run(deleteQuery);
       response.send("Tweet Removed");
     }
