@@ -118,7 +118,7 @@ app.get("/user/", async (request, response) => {
   const getUserQuery = `
   SELECT *
   FROM 
-  user;`;
+  like;`;
   const userArray = await db.all(getUserQuery);
   response.send(userArray);
 });
@@ -128,11 +128,26 @@ app.get("/user/", async (request, response) => {
 app.get("/user/tweets/feed/", authenticateToken, async (request, response) => {
   const userId = 2;
   const getUserQuery = `
-  SELECT username, tweet, date_time AS dateTime 
-  FROM 
-  user INNER JOIN tweet ON user.user_id = tweet.user_id 
-  ORDER BY dateTime DESC 
-  LIMIT 4;`;
+    SELECT
+        name,
+        tweet,
+        date_time AS dateTime
+    FROM
+        user NATURAL
+        JOIN tweet
+    WHERE
+        user_id IN (
+            SELECT
+                following_user_id
+            FROM
+                follower
+            WHERE
+                follower_user_id = ${userId}
+        )
+    ORDER BY
+        dateTime DESC
+    LIMIT
+        4;`;
   const userArray = await db.all(getUserQuery);
   response.send(userArray);
 });
@@ -150,16 +165,21 @@ app.get("/following/", async (request, response) => {
 // API 4
 
 app.get("/user/following/", authenticateToken, async (request, response) => {
-  const userId = 1;
+  const userId = 2;
   const getUserQuery = `
-  SELECT name
-  FROM
-   user INNER JOIN follower ON user.user_id = follower.follower_user_id
-  WHERE follower.following_user_id = 
-  (SELECT following_user_id FROM follower WHERE follower_user_id = ${userId})
-  
-  
-  ;`;
+    SELECT
+        name
+    FROM
+        user
+    WHERE
+        user_id IN (
+            SELECT
+                following_user_id
+            FROM
+                follower
+            WHERE
+                follower_user_id = ${userId}
+        );`;
   const userArray = await db.all(getUserQuery);
   response.send(userArray);
 });
@@ -167,14 +187,22 @@ app.get("/user/following/", authenticateToken, async (request, response) => {
 // API 5
 
 app.get("/user/followers/", authenticateToken, async (request, response) => {
-  const userId = 1;
+  const userId = 2;
 
   const getUserQuery = `
-  SELECT name
-  FROM 
-  user INNER JOIN follower ON user.user_id = follower.following_user_id
-  WHERE follower.follower_user_id = 
-  (SELECT follower_user_id FROM follower WHERE following_user_id = ${userId})
+    SELECT
+        name
+    FROM
+        user
+    WHERE
+        user_id IN (
+            SELECT
+                follower_user_id
+            FROM
+                follower
+            WHERE
+                following_user_id = ${userId}
+        )
   ;`;
   const userArray = await db.all(getUserQuery);
   response.send(userArray);
@@ -184,9 +212,9 @@ app.get("/user/followers/", authenticateToken, async (request, response) => {
 
 app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
   const { tweetId } = request.params;
-  const userId = 1;
+  const userId = 2;
   const deleteId = `
-    SELECT tweet_id from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
+    SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
   const dbResponse = await db.get(deleteId);
 
   if (dbResponse === undefined) {
@@ -194,15 +222,19 @@ app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
     response.send("Invalid Request");
   } else {
     const tweetQuery = `
-    SELECT tweet.tweet AS tweet,
-    COUNT(like.like_id) AS likes,
-    COUNT(Q.reply_id) AS replays,
-    Q.date_time AS dateTime
-    FROM ((( user INNER JOIN follower ON user.user_id = follower.following_user_id ) AS T
-    INNER JOIN tweet ON tweet.user_id = user.user_id ) AS F
-    INNER JOIN reply ON reply.tweet_id = F.tweet_id ) AS Q
-    INNER JOIN like ON like.tweet_id = Q.tweet_id
-    WHERE user.user_id = ${userId} AND tweet.tweet_id = ${tweetId}
+    SELECT
+        tweet,
+        count(DISTINCT like_id) AS likes,
+        count(DISTINCT reply_id) AS replies,
+        date_time AS dateTime
+    FROM
+    (
+        tweet
+        LEFT JOIN LIKE ON tweet.tweet_id = LIKE.tweet_id
+    ) AS T
+        LEFT JOIN reply ON tweet.tweet_id = reply.tweet_id
+        WHERE
+            tweet.tweet_id = ${tweetId}
 
     `;
 
