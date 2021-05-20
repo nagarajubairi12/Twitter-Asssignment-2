@@ -234,7 +234,7 @@ app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
     ) AS T
         LEFT JOIN reply ON tweet.tweet_id = reply.tweet_id
         WHERE
-            tweet.tweet_id = ${tweetId}
+            tweet.tweet_id = ${tweetId};
 
     `;
 
@@ -248,7 +248,20 @@ app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
 app.get(
   "/tweets/:tweetId/likes/",
   authenticateToken,
-  async (request, response) => {}
+  async (request, response) => {
+    const { tweetId } = request.params;
+    const likesQuery = `
+        SELECT
+            name
+        FROM
+            LIKE
+                LEFT JOIN user ON LIKE.user_id = user.user_id
+        WHERE
+            tweet_id = ${tweetId}
+      ;`;
+    const likeResponse = await db.all(likesQuery);
+    response.send({ likes: likeResponse.map((each) => each.name) });
+  }
 );
 
 // API 8
@@ -256,13 +269,52 @@ app.get(
 app.get(
   "/tweets/:tweetId/replies/",
   authenticateToken,
-  async (request, response) => {}
+  async (request, response) => {
+    const { tweetId } = request.params;
+    const replyQuery = `
+        SELECT
+            name,
+            reply
+        FROM
+            reply
+                LEFT JOIN user ON reply.user_id = user.user_id
+        WHERE
+            tweet_id =${tweetId}
+      ;`;
+    const replyResponse = await db.all(replyQuery);
+    response.send({
+      replies: replyResponse.map((each) => ({
+        name: each.name,
+        reply: each.reply,
+      })),
+    });
+  }
 );
 
 // API 9
 
 app.get("/user/tweets/", authenticateToken, async (request, response) => {
   const userId = 2;
+  const userTweets = `
+    SELECT
+        tweet,
+        count(DISTINCT like_id) AS likes,
+        count(DISTINCT reply_id) AS replies,
+        date_time AS dateTime
+    FROM
+    (
+        tweet
+        LEFT JOIN LIKE ON tweet.tweet_id = LIKE.tweet_id
+    ) AS T
+        LEFT JOIN reply ON tweet.tweet_id = reply.tweet_id
+    WHERE
+        tweet.user_id = ${userId}
+    GROUP BY
+        tweet.tweet_id;`;
+
+  const tweetResponse = await db.all(userTweets);
+
+  response.send(tweetResponse);
 });
 
 // API 10
@@ -294,7 +346,7 @@ app.delete(
     const { tweetId } = request.params;
     const userId = 2;
     const deleteId = `
-    SELECT tweet_id from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
+    SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
     const deleteResponse = await db.get(deleteId);
     if (deleteResponse === undefined) {
       response.status(401);
@@ -303,10 +355,8 @@ app.delete(
       const deleteQuery = `
     DELETE FROM 
     tweet
-    WHERE
-    user_id = ${userId} and 
-    tweet_id = '${tweetId}';`;
-
+    WHERE 
+    tweet_id = ${tweetId};`;
       await db.run(deleteQuery);
       response.send("Tweet Removed");
     }
