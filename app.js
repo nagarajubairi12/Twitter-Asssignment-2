@@ -50,6 +50,19 @@ const authenticateToken = (request, response, next) => {
   }
 };
 
+let userId = async (request, response, next) => {
+  const getUserId = `SELECT user_id FROM user WHERE username LIKE '${request.username}'`;
+  const dbUserId = await db.get(getUserId);
+  let userId;
+  if (dbUserId != undefined) {
+    request.userId = dbUserId.user_id;
+    next();
+  } else {
+    response.status(401);
+    response.send("Invalid user");
+  }
+};
+
 const isValiedPassword = (password) => {
   return password.length > 6;
 };
@@ -118,16 +131,20 @@ app.get("/user/", async (request, response) => {
   const getUserQuery = `
   SELECT *
   FROM 
-  like;`;
+  user;`;
   const userArray = await db.all(getUserQuery);
   response.send(userArray);
 });
 
 // API 3
 
-app.get("/user/tweets/feed/", authenticateToken, async (request, response) => {
-  const userId = 2;
-  const getUserQuery = `
+app.get(
+  "/user/tweets/feed/",
+  authenticateToken,
+  userId,
+  async (request, response) => {
+    let userId = request.userId;
+    const getUserQuery = `
     SELECT
         name,
         tweet,
@@ -148,9 +165,10 @@ app.get("/user/tweets/feed/", authenticateToken, async (request, response) => {
         dateTime DESC
     LIMIT
         4;`;
-  const userArray = await db.all(getUserQuery);
-  response.send(userArray);
-});
+    const userArray = await db.all(getUserQuery);
+    response.send(userArray);
+  }
+);
 
 app.get("/following/", async (request, response) => {
   const getUserQuery = `
@@ -164,9 +182,13 @@ app.get("/following/", async (request, response) => {
 
 // API 4
 
-app.get("/user/following/", authenticateToken, async (request, response) => {
-  const userId = 2;
-  const getUserQuery = `
+app.get(
+  "/user/following/",
+  authenticateToken,
+  userId,
+  async (request, response) => {
+    const userId = request.userId;
+    const getUserQuery = `
     SELECT
         name
     FROM
@@ -180,16 +202,21 @@ app.get("/user/following/", authenticateToken, async (request, response) => {
             WHERE
                 follower_user_id = ${userId}
         );`;
-  const userArray = await db.all(getUserQuery);
-  response.send(userArray);
-});
+    const userArray = await db.all(getUserQuery);
+    response.send(userArray);
+  }
+);
 
 // API 5
 
-app.get("/user/followers/", authenticateToken, async (request, response) => {
-  const userId = 2;
+app.get(
+  "/user/followers/",
+  authenticateToken,
+  userId,
+  async (request, response) => {
+    const userId = request.userId;
 
-  const getUserQuery = `
+    const getUserQuery = `
     SELECT
         name
     FROM
@@ -204,24 +231,29 @@ app.get("/user/followers/", authenticateToken, async (request, response) => {
                 following_user_id = ${userId}
         )
   ;`;
-  const userArray = await db.all(getUserQuery);
-  response.send(userArray);
-});
+    const userArray = await db.all(getUserQuery);
+    response.send(userArray);
+  }
+);
 
 // API 6
 
-app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
-  const { tweetId } = request.params;
-  const userId = 2;
-  const validate = `
+app.get(
+  "/tweets/:tweetId/",
+  authenticateToken,
+  userId,
+  async (request, response) => {
+    const { tweetId } = request.params;
+    const userId = request.userId;
+    const validate = `
     SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
-  const dbResponse = await db.get(validate);
+    const dbResponse = await db.get(validate);
 
-  if (dbResponse === undefined) {
-    response.status(401);
-    response.send("Invalid Request");
-  } else {
-    const tweetQuery = `
+    if (dbResponse === undefined) {
+      response.status(401);
+      response.send("Invalid Request");
+    } else {
+      const tweetQuery = `
     SELECT
         tweet,
         count(DISTINCT like_id) AS likes,
@@ -238,19 +270,21 @@ app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
 
     `;
 
-    const responseArray = await db.get(tweetQuery);
-    response.send(responseArray);
+      const responseArray = await db.get(tweetQuery);
+      response.send(responseArray);
+    }
   }
-});
+);
 
 // API 7
 
 app.get(
   "/tweets/:tweetId/likes/",
   authenticateToken,
+  userId,
   async (request, response) => {
     const { tweetId } = request.params;
-    const userId = 2;
+    const userId = request.userId;
 
     const validate = `
     SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
@@ -280,9 +314,10 @@ app.get(
 app.get(
   "/tweets/:tweetId/replies/",
   authenticateToken,
+  userId,
   async (request, response) => {
     const { tweetId } = request.params;
-    const userId = 2;
+    const userId = request.userId;
 
     const validate = `
     SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
@@ -315,9 +350,13 @@ app.get(
 
 // API 9
 
-app.get("/user/tweets/", authenticateToken, async (request, response) => {
-  const userId = 2;
-  const userTweets = `
+app.get(
+  "/user/tweets/",
+  authenticateToken,
+  userId,
+  async (request, response) => {
+    const userId = request.userId;
+    const userTweets = `
     SELECT
         tweet,
         count(DISTINCT like_id) AS likes,
@@ -334,18 +373,23 @@ app.get("/user/tweets/", authenticateToken, async (request, response) => {
     GROUP BY
         tweet.tweet_id;`;
 
-  const tweetResponse = await db.all(userTweets);
+    const tweetResponse = await db.all(userTweets);
 
-  response.send(tweetResponse);
-});
+    response.send(tweetResponse);
+  }
+);
 
 // API 10
 
-app.post("/user/tweets/", authenticateToken, async (request, response) => {
-  const { tweet } = request.body;
-  const userId = 2;
+app.post(
+  "/user/tweets/",
+  authenticateToken,
+  userId,
+  async (request, response) => {
+    const { tweet } = request.body;
+    const userId = request.userId;
 
-  const userPostQuery = `
+    const userPostQuery = `
     INSERT INTO
     tweet ( tweet, user_id)
   VALUES
@@ -354,19 +398,21 @@ app.post("/user/tweets/", authenticateToken, async (request, response) => {
       ${userId}
       );`;
 
-  const tweetResponse = await db.run(userPostQuery);
-  const tweet_id = tweetResponse.lastID;
-  response.send("Created a Tweet");
-});
+    const tweetResponse = await db.run(userPostQuery);
+    const tweet_id = tweetResponse.lastID;
+    response.send("Created a Tweet");
+  }
+);
 
 // API 11
 
 app.delete(
   "/tweets/:tweetId/",
   authenticateToken,
+  userId,
   async (request, response) => {
     const { tweetId } = request.params;
-    const userId = 2;
+    const userId = request.userId;
     const deleteId = `
     SELECT tweet from tweet WHERE user_id = ${userId} and tweet_id = ${tweetId}`;
     const deleteResponse = await db.get(deleteId);
